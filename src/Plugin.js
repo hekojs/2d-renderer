@@ -1,10 +1,11 @@
 import Events from 'events'
 import _ from 'lodash'
 import * as PIXI from 'pixi.js'
-import Statistics from './Modules/Statistics'
+import Statistics from './Performance/Statistics'
 import Creator from './Visual/Creator'
 import HekoPalette from './Palettes/Heko'
-import RendererRenderScene from './Systems/RendererRenderScene'
+import Camera from './Projection/Camera'
+import RendererPlugin from './Systems/RendererPlugin'
 import RendererDrawPhysicsShapes from './Systems/RendererDrawPhysicsShapes'
 
 /*
@@ -16,6 +17,9 @@ export default class Renderer {
     this.events = new Events
     this.palette = options && options.palette ? options.palette : HekoPalette
     this.visuals = new Creator(this)
+
+    this.containers = {}
+    this.layers = {}
 
     this.PIXI = window.PIXI = PIXI
     require('pixi-layers')
@@ -30,16 +34,26 @@ export default class Renderer {
         resolution: 1,
         backgroundColor: Number('0x' + this.palette.background)
       },
-      modules: {
-        statistics: true,
-        physicsDebugger: false
+      camera: null,
+      target: document.body,
+      stage: {
+        scene: {
+          type: 'container',
+          options: {
+            sortableChildren: true
+          }
+        },
+        effects: {
+          type: 'layer',
+          fixed: true
+        },
+        ui: {
+          type: 'container',
+          fixed: true
+        }
       },
-      containers: [
-        'scene',
-        'ui'
-      ],
-      layers: [],
-      target: document.body
+      drawPhysicsShapes: false,
+      statistics: false
     }, options)
 
     this.resolution = {
@@ -51,6 +65,11 @@ export default class Renderer {
         scale: this.options.app.resolution
       }
     }
+
+    // Resolve target
+    if(typeof this.options.target === 'string') {
+      this.options.target = document.getElementById(options.target)
+    }
   }
 
   onStart () {
@@ -61,6 +80,12 @@ export default class Renderer {
     this._setupSystems()
     this._setupStatistics()
     this.events.emit('started')
+  }
+
+  onTick() {
+    const transform = this.camera.getTransformation()
+    this.app.stage.x = transform.x
+    this.app.stage.y = transform.y
   }
 
   getContainer (name) {
@@ -79,23 +104,29 @@ export default class Renderer {
   }
 
   _setupApplicationStage () {
+    // Setup the camera
+    this.camera = this.options.camera ? this.options.camera : new Camera()
+    this.camera.renderer = this
+
     this.app.stage = new PIXI.display.Stage()
 
-    this.containers = {}
-    this.options.containers.forEach(name => {
-      this.containers[name] = new this.PIXI.Container()
-      this.app.stage.addChild(this.containers[name])
-    })
+    for(let name in this.options.stage) {
+      const element = this.options.stage[name]
+
+      if(element.type === 'container') {
+        this.containers[name] = new this.PIXI.Container(element.options)
+        this.containers[name].isFixed = !!element.fixed
+        this.app.stage.addChild(this.containers[name])
+      } else if (element.type === 'layer') {
+        this.layers[name] = new this.PIXI.display.Layer(element.options)
+        this.layers[name].isFixed = !!element.fixed
+        this.app.stage.addChild(this.layers[name])
+      }
+    }
 
     // Create debug container
     this.containers.debug = new this.PIXI.Container()
     this.app.stage.addChild(this.containers.debug)
-
-    this.layers = {}
-    this.options.layers.forEach(name => {
-      this.layers[name] = new this.PIXI.display.Layer()
-      this.app.stage.addChild(this.layers[name])
-    })
   }
 
   _setupApplicationResize () {
@@ -131,13 +162,13 @@ export default class Renderer {
   }
 
   _setupSystems () {
-    this.world.systems.add(RendererRenderScene, { renderer: this })
+    this.world.systems.add(RendererPlugin, { renderer: this })
     if(this.options.drawPhysicsShapes) {
       this.world.systems.add(RendererDrawPhysicsShapes, { renderer: this })
     }
   }
 
   _setupStatistics () {
-    this.statistics = this.options.modules.statistics ? new Statistics(this, { target: this.options.target }) : null
+    this.statistics = this.options.statistics ? new Statistics(this, { target: this.options.target }) : null
   }
 }

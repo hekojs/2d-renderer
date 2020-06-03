@@ -1,5 +1,6 @@
 import Heko from '@hekojs/core'
 import HekoPhysics from '@hekojs/2d-physics'
+import RendererPlugin from '../Plugin'
 
 export default class RendererDrawPhysicsShapes extends Heko.System {
   static queries = {
