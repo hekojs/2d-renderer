@@ -18,7 +18,7 @@
   "dependencies": {
     "events": "^3.1.0",
     "gstats": "^0.1.0",
-    "lodash": "^4.17.15",
+    "lodash": "^4.17.21",
     "pixi-layers": "^0.2.3",
     "pixi-tilemap": "^2.0.6",
     "pixi.js": "^5.2.3",
